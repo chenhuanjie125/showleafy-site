@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PhotoHarbor Google Drive Picker</title>
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      background: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    .state {
+      min-height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #5f6368;
+      font-size: 15px;
+      text-align: center;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+  </style>
+  <script src="https://apis.google.com/js/api.js"></script>
+  <script>
+    function pickerParams() {
+      const query = window.location.search.startsWith("?") ? window.location.search.slice(1) : "";
+      const hash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : "";
+      const params = new URLSearchParams(hash || query);
+      return {
+        developerKey: params.get("apiKey") || "",
+        appId: params.get("appId") || "",
+        oauthToken: params.get("oauthToken") || ""
+      };
+    }
+
+    function post(message) {
+      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.googleDrivePicker) {
+        window.webkit.messageHandlers.googleDrivePicker.postMessage(message);
+      }
+    }
+
+    function debug(message, detail) {
+      post({ action: "log", message, detail: detail || "" });
+    }
+
+    function fail(message, detail) {
+      const text = [message, detail].filter(Boolean).join(" - ");
+      document.body.innerHTML = '<div class="state">' + text.replace(/</g, "&lt;") + "</div>";
+      post({ action: "error", message, detail: detail || "" });
+    }
+
+    function onApiLoad() {
+      debug("api_load_start", window.location.origin || "");
+      gapi.load("picker", { callback: createPicker });
+    }
+
+    function createPicker() {
+      try {
+        if (!window.google || !google.picker) {
+          fail("picker_unavailable", "google.picker not loaded");
+          return;
+        }
+        const params = pickerParams();
+        if (!params.developerKey || !params.appId || !params.oauthToken) {
+          fail("picker_missing_params", JSON.stringify({
+            hasApiKey: !!params.developerKey,
+            hasAppId: !!params.appId,
+            hasOauthToken: !!params.oauthToken
+          }));
+          return;
+        }
+        const origin = window.location.origin;
+        debug("picker_create", JSON.stringify({
+          origin,
+          cookieEnabled: navigator.cookieEnabled
+        }));
+        const folderView = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
+          .setIncludeFolders(true)
+          .setSelectFolderEnabled(true)
+          .setMimeTypes("application/vnd.google-apps.folder");
+        const picker = new google.picker.PickerBuilder()
+          .setAppId(params.appId)
+          .setOAuthToken(params.oauthToken)
+          .setDeveloperKey(params.developerKey)
+          .setOrigin(origin)
+          .addView(folderView)
+          .setCallback(pickerCallback)
+          .build();
+        picker.setVisible(true);
+      } catch (error) {
+        fail("picker_create_failed", String(error));
+      }
+    }
+
+    function pickerCallback(data) {
+      if (data.action === google.picker.Action.PICKED && data.docs && data.docs.length > 0) {
+        const doc = data.docs[0];
+        post({ action: "picked", id: doc.id || "", name: doc.name || doc.title || "" });
+      } else if (data.action === google.picker.Action.CANCEL) {
+        post({ action: "cancel" });
+      }
+    }
+
+    window.onerror = function(message, source, lineno, colno) {
+      fail("window_error", [message, source, lineno, colno].filter(Boolean).join(" | "));
+    };
+
+    window.onunhandledrejection = function(event) {
+      fail("promise_rejection", String(event.reason || "unknown"));
+    };
+
+    window.onload = onApiLoad;
+  </script>
+</head>
+<body>
+  <div class="state">Loading Google Picker...</div>
+</body>
+</html>
