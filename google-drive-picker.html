@@ -27,6 +27,13 @@
       box-sizing: border-box;
     }
 
+    .state-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 2147483647;
+      background: rgba(255, 255, 255, 0.98);
+    }
+
     .title {
       font-size: 28px;
       font-weight: 700;
@@ -44,11 +51,22 @@
     let pickerTimeout = null;
 
     function renderState(title, detail) {
-      document.body.innerHTML =
-        '<div class="state">' +
+      const existingFrames = document.querySelectorAll("iframe");
+      existingFrames.forEach(function(frame) {
+        frame.remove();
+      });
+      const existingOverlay = document.getElementById("picker-state-overlay");
+      if (existingOverlay) {
+        existingOverlay.remove();
+      }
+      const overlay = document.createElement("div");
+      overlay.id = "picker-state-overlay";
+      overlay.className = "state state-overlay";
+      overlay.innerHTML =
         '<div class="title">' + title.replace(/</g, "&lt;") + "</div>" +
         '<div class="detail">' + detail.replace(/</g, "&lt;") + "</div>" +
-        "</div>";
+        "";
+      document.body.appendChild(overlay);
     }
 
     function setStage(stage, detail) {
@@ -137,7 +155,7 @@
             "picker_timeout",
             "Picker did not produce a folder list or callback after becoming visible. Last stage: " + pickerLifecycle
           );
-        }, 5000);
+        }, 6000);
       } catch (error) {
         fail("picker_create_failed", String(error));
       }
